@@ -22,7 +22,7 @@ def init_db():
                         CREATE TABLE IF NOT EXISTS fridge_current (
                             item_name   TEXT PRIMARY KEY,
                             expiry      DATE NOT NULL,
-                            qty         INT  NOT NULL,
+                            qty         INT  NOT NULL DEFAULT 0,
                             category    TEXT NOT NULL,
                             updated_at  TIMESTAMPTZ DEFAULT NOW()
                         )
@@ -56,10 +56,15 @@ def upsert_item(item_name: str, expiry, qty: int, category: str):
         conn.commit()
 
 
-def delete_item(item_name: str):
+def soft_delete_item(item_name: str):
+    """Set qty to 0 instead of deleting the row."""
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM fridge_current WHERE item_name = %s", (item_name,))
+            cur.execute("""
+                UPDATE fridge_current
+                SET qty = 0, updated_at = NOW()
+                WHERE item_name = %s
+            """, (item_name,))
         conn.commit()
 
 
@@ -75,7 +80,12 @@ def get_item(item_name: str):
 
 
 def get_all_items():
+    """Returns only in-stock items (qty > 0), ordered by category then expiry."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT * FROM fridge_current ORDER BY expiry ASC")
+            cur.execute("""
+                SELECT * FROM fridge_current
+                WHERE qty > 0
+                ORDER BY category ASC, expiry ASC
+            """)
             return cur.fetchall()
