@@ -1,11 +1,12 @@
 import json
 from datetime import datetime
-import anthropic
-from config import ANTHROPIC_API_KEY
+import google.generativeai as genai
+from config import GEMINI_API_KEY
 
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+genai.configure(api_key=GEMINI_API_KEY)
+client = genai.GenerativeModel("gemini-1.5-flash")
 
-SYSTEM_PROMPT = """You are a fridge management assistant. 
+SYSTEM_PROMPT = """You are a fridge management assistant.
 Return ONLY a valid JSON object — no explanation, no markdown, no extra text.
 
 Detect the intent from the user message and return one of these formats:
@@ -44,14 +45,13 @@ def parse_intent(user_message: str, fridge_contents: list) -> dict:
         [dict(r) for r in fridge_contents], default=str
     ) if fridge_contents else "empty"
 
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=256,
-        system=SYSTEM_PROMPT,
-        messages=[{
-            "role": "user",
-            "content": f"Today is {today}.\nFridge contents: {contents_str}\nMessage: \"{user_message}\""
-        }]
+    prompt = (
+        f"{SYSTEM_PROMPT}\n\n"
+        f"Today is {today}.\n"
+        f"Fridge contents: {contents_str}\n"
+        f"Message: \"{user_message}\""
     )
 
-    return json.loads(response.content[0].text)
+    response = client.generate_content(prompt)
+    cleaned = response.text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    return json.loads(cleaned)
