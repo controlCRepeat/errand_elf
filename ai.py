@@ -5,7 +5,7 @@ from google.genai import types
 from config import GEMINI_API_KEY
 
 client = genai.Client(api_key=GEMINI_API_KEY)
-MODEL  = "gemini-3.1-flash-lite"
+MODEL  = "gemini-3.1-flash-lite-preview"
 
 SYSTEM_PROMPT = """You are a fridge management assistant.
 Return ONLY a valid JSON array — no explanation, no markdown, no extra text.
@@ -60,10 +60,10 @@ def parse_intent(user_message: str, fridge_contents: list) -> list:
         model=MODEL,
         contents=prompt,
         config=types.GenerateContentConfig(
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
-            temperature=0.1,
-            max_output_tokens=512,
-        )
+        thinking_config=types.ThinkingConfig(thinking_level="none"),
+        temperature=0.1,
+        max_output_tokens=512,
+    )
     )
 
     cleaned = (
