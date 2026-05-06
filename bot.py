@@ -1,4 +1,5 @@
 import os
+import time
 import psycopg2
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -10,11 +11,20 @@ def get_conn():
     return psycopg2.connect(DATABASE_URL)
 
 def init_db():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1") #test ping
-        conn.commit()
-    print("DB connection successful ✅")
+    for attempt in range(5):
+        try:
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                conn.commit()
+            print("DB connection successful ✅")
+            return
+        except Exception as e:
+            wait = 2 ** attempt  # 1, 2, 4, 8, 16 seconds
+            print(f"DB connection failed (attempt {attempt+1}): {e}")
+            print(f"Retrying in {wait}s...")
+            time.sleep(wait)
+    raise RuntimeError("Could not connect to DB after 5 attempts")
 
 if __name__ == "__main__":
     init_db()
