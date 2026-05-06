@@ -113,15 +113,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     fridge = get_all_items()
 
     try:
-        parsed = parse_intent(text, fridge)
-        intent = parsed.get("intent")
+        actions = parse_intent(text, fridge)
 
-        if intent == "view":
-            await handle_view(update, fridge)
-        elif intent in INTENT_HANDLERS:
-            await INTENT_HANDLERS[intent](update, parsed)
-        else:
-            await update.message.reply_text(HELP_TEXT, parse_mode="HTML")
+        for parsed in actions:
+            intent = parsed.get("intent")
+
+            if intent == "view":
+                await handle_view(update, fridge)
+            elif intent in INTENT_HANDLERS:
+                await INTENT_HANDLERS[intent](update, parsed)
+            else:
+                await update.message.reply_text(HELP_TEXT, parse_mode="HTML")
 
     except Exception as e:
         print(f"Error handling message: {e}")
