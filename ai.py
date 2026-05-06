@@ -60,7 +60,6 @@ def parse_intent(user_message: str, fridge_contents: list) -> list:
         model=MODEL,
         contents=prompt,
         config=types.GenerateContentConfig(
-        thinking_config=types.ThinkingConfig(thinking_level="none"),
         temperature=0.1,
         max_output_tokens=512,
     )
