@@ -4,7 +4,7 @@ import google.generativeai as genai
 from config import GEMINI_API_KEY
 
 genai.configure(api_key=GEMINI_API_KEY)
-client = genai.GenerativeModel("gemini-1.5-flash")
+client = genai.GenerativeModel("gemini-1.5-flash-latest")
 
 SYSTEM_PROMPT = """You are a fridge management assistant.
 Return ONLY a valid JSON object — no explanation, no markdown, no extra text.
