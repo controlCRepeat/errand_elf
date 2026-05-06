@@ -1,10 +1,10 @@
 import json
 from datetime import datetime
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from config import GEMINI_API_KEY
 
-genai.configure(api_key=GEMINI_API_KEY)
-client = genai.GenerativeModel("gemini-1.5-flash-latest")
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 SYSTEM_PROMPT = """You are a fridge management assistant.
 Return ONLY a valid JSON object — no explanation, no markdown, no extra text.
@@ -52,6 +52,21 @@ def parse_intent(user_message: str, fridge_contents: list) -> dict:
         f"Message: \"{user_message}\""
     )
 
-    response = client.generate_content(prompt)
-    cleaned = response.text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    response = client.models.generate_content(
+        model="gemini-2.5-flash-lite",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            temperature=0.1,
+            max_output_tokens=256,
+        )
+    )
+
+    cleaned = (
+        response.text.strip()
+        .removeprefix("```json")
+        .removeprefix("```")
+        .removesuffix("```")
+        .strip()
+    )
     return json.loads(cleaned)
