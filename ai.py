@@ -14,13 +14,13 @@ Each element in the array is one action to perform.
 Each element must be one of these formats:
 
 Add item:
-{"intent": "add", "item_name": "name", "qty": 1, "expiry": "YYYY-MM-DD", "category": "fresh|frozen|dry goods|drinks|condiments|household|snacks"}
+{"intent": "add", "brand": "Brand Name or empty string if none", "item_name": "Product Name", "qty": 1, "expiry": "YYYY-MM-DD", "category": "fresh|frozen|dry goods|drinks|condiments|household|snacks"}
 
 Consume item:
-{"intent": "consume", "item_name": "name", "qty": 1}
+{"intent": "consume", "brand": "Brand Name or empty string if none", "item_name": "Product Name", "qty": 1}
 
 Throw item:
-{"intent": "throw", "item_name": "name"}
+{"intent": "throw", "brand": "Brand Name or empty string if none", "item_name": "Product Name"}
 
 View fridge:
 {"intent": "view"}
@@ -35,7 +35,7 @@ Intent keywords:
 - view:    show, what's in, fridge, list, check, inventory
 
 Categories:
-- fresh:      meat, vegetables, dairy, eggs, fruits
+- fresh:      meat, vegetables, dairy, eggs, fruits, protein shakes
 - frozen:     frozen meals, ice cream, frozen meat
 - dry goods:  rice, noodles, oats, cereals, pasta, instant food
 - drinks:     milo, oat milk, juice, beer, beverages, water
@@ -45,12 +45,14 @@ Categories:
 
 Rules:
 - If the message mentions multiple items, return one array element per item
-- Match item names loosely to existing fridge contents where possible
+- Extract brand separately from item name e.g. "Rokeby Honeycomb Protein Shake" → brand: "Rokeby", item_name: "Honeycomb Protein Shake"
+- If no brand is mentioned, set brand to empty string ""
+- Match brand + item_name loosely to existing fridge contents where possible
 - Default expiry: 7 days from today
 - Default qty: 1
 - Default category: fresh
 - Always return an array, even for a single action
-- item_name should be title cased e.g. Oat Milk not oat milk"""
+- item_name and brand should be title cased"""
 
 
 def parse_intent(user_message: str, fridge_contents: list) -> list:

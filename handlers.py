@@ -1,13 +1,13 @@
 from datetime import datetime
-from telegram import Update
+from telegram import Update, BotCommand
 from telegram.ext import ContextTypes
 from ai import parse_intent
-from database import get_all_items, get_item, upsert_item, soft_delete_item
+from database import get_all_items, get_item, upsert_item, soft_delete_item, get_expiring_items, get_out_of_stock_items
 from config import EXPIRY_WARNING_DAYS
 
 HELP_TEXT = (
     "I didn't quite get that. Try:\n"
-    "• <i>bought 2 oat milks expiring end of May</i>\n"
+    "• <i>bought 2 Rokeby protein shakes expiring end of May</i>\n"
     "• <i>drank the last oat milk</i>\n"
     "• <i>threw out the cheese</i>\n"
     "• <i>what's in the fridge</i>"
@@ -23,6 +23,24 @@ CATEGORY_HEADERS = {
     "snacks":     "🥨 SNACKS",
 }
 
+INTRO_TEXT = (
+    "<b>👋 Hey! I'm ErrandElf — your fridge assistant.</b>\n\n"
+    "Just talk to me naturally:\n\n"
+    "➕ <b>Add items</b>\n"
+    "<i>bought 2 Rokeby protein shakes expiring end of May</i>\n\n"
+    "✅ <b>Consume items</b>\n"
+    "<i>drank an oat milk</i>\n\n"
+    "🗑 <b>Throw items</b>\n"
+    "<i>threw out the leftover pasta</i>\n\n"
+    "📦 <b>Check your fridge</b>\n"
+    "<i>what's in the fridge</i>\n\n"
+    "<b>Quick commands:</b>\n"
+    "/fridge — view all inventory\n"
+    "/expiring — items expiring within 7 days\n"
+    "/restock — items that are out of stock\n"
+    "/intro — show this message"
+)
+
 
 def expiry_emoji(days_left: int) -> str:
     if days_left <= 0:
@@ -34,9 +52,16 @@ def expiry_emoji(days_left: int) -> str:
     return "✅"
 
 
+def display_name(row) -> str:
+    """Returns 'Brand Item Name' or just 'Item Name' if no brand."""
+    if row["brand"]:
+        return f"{row['brand']} {row['item_name']}"
+    return row["item_name"]
+
+
 def format_item_line(row, today) -> str:
-    days_left = (row["expiry"] - today).days
-    emoji     = expiry_emoji(days_left)
+    days_left  = (row["expiry"] - today).days
+    emoji      = expiry_emoji(days_left)
     expiry_str = row["expiry"].strftime("%d %b")
 
     if days_left <= 0:
@@ -46,7 +71,44 @@ def format_item_line(row, today) -> str:
     else:
         timing = f"{days_left}d left"
 
-    return f"{emoji} {row['qty']}x {row['item_name']} — {expiry_str} ({timing})"
+    return f"{emoji} {row['qty']}x {display_name(row)} — {expiry_str} ({timing})"
+
+
+# ---------------------------------------------------------------------------
+# Command handlers
+# ---------------------------------------------------------------------------
+
+async def cmd_intro(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(INTRO_TEXT, parse_mode="HTML")
+
+
+async def cmd_fridge(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await handle_view(update, get_all_items())
+
+
+async def cmd_expiring(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    items = get_expiring_items(days=7)
+    if not items:
+        await update.message.reply_text("Nothing expiring in the next 7 days. 🎉")
+        return
+    today = datetime.now().date()
+    lines = [format_item_line(r, today) for r in items]
+    await update.message.reply_text(
+        "<b>☢️ Expiring within 7 days</b>\n" + "\n".join(lines),
+        parse_mode="HTML"
+    )
+
+
+async def cmd_restock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    items = get_out_of_stock_items()
+    if not items:
+        await update.message.reply_text("Nothing out of stock. You're well stocked! 💪")
+        return
+    lines = [f"• {display_name(r)}" for r in items]
+    await update.message.reply_text(
+        "<b>🛒 Out of stock — time to restock</b>\n" + "\n".join(lines),
+        parse_mode="HTML"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -54,64 +116,70 @@ def format_item_line(row, today) -> str:
 # ---------------------------------------------------------------------------
 
 async def handle_add(update: Update, parsed: dict):
+    brand     = parsed.get("brand") or ""
     item_name = parsed["item_name"]
     qty       = int(parsed.get("qty", 1))
     category  = parsed.get("category", "fresh").lower()
     expiry    = datetime.strptime(parsed["expiry"], "%Y-%m-%d").date()
 
-    existing = get_item(item_name)
+    existing = get_item(brand, item_name)
     action   = "updated" if existing and existing["qty"] > 0 else "added"
-    upsert_item(item_name, expiry, qty, category)
+    upsert_item(brand, item_name, expiry, qty, category)
 
     days_left   = (expiry - datetime.now().date()).days
     expiry_warn = f"\n⚠️ Heads up — expires in {days_left}d!" if days_left <= 7 else ""
     header      = CATEGORY_HEADERS.get(category, "📦 OTHER")
+    name        = f"{brand} {item_name}".strip()
 
     await update.message.reply_text(
-        f"✅ <b>{item_name}</b> {action}\n"
+        f"✅ <b>{name}</b> {action}\n"
         f"{header} | Qty: {qty} | Expiry: {expiry.strftime('%d %b %y')}{expiry_warn}",
         parse_mode="HTML"
     )
 
 
 async def handle_consume(update: Update, parsed: dict):
+    brand          = parsed.get("brand") or ""
     item_name      = parsed["item_name"]
     qty_to_consume = int(parsed.get("qty", 1))
-    row            = get_item(item_name)
+    row            = get_item(brand, item_name)
+    name           = f"{brand} {item_name}".strip()
 
     if not row or row["qty"] == 0:
         await update.message.reply_text(
-            f"I don't see <b>{item_name}</b> in the fridge.", parse_mode="HTML"
+            f"I don't see <b>{name}</b> in the fridge.", parse_mode="HTML"
         )
         return
 
     new_qty = row["qty"] - qty_to_consume
     if new_qty <= 0:
-        soft_delete_item(item_name)
+        soft_delete_item(brand, item_name)
         await update.message.reply_text(
-            f"All done! <b>{item_name}</b> is out of stock. 🏁", parse_mode="HTML"
+            f"All done! <b>{name}</b> is out of stock. 🏁", parse_mode="HTML"
         )
     else:
-        upsert_item(item_name, row["expiry"], new_qty, row["category"])
+        upsert_item(brand, item_name, row["expiry"], new_qty, row["category"])
         await update.message.reply_text(
-            f"Got it! Used {qty_to_consume}x <b>{item_name}</b>. {new_qty} remaining. 👍",
+            f"Got it! Used {qty_to_consume}x <b>{name}</b>. {new_qty} remaining. 👍",
             parse_mode="HTML"
         )
 
 
 async def handle_throw(update: Update, parsed: dict):
+    brand     = parsed.get("brand") or ""
     item_name = parsed["item_name"]
-    row       = get_item(item_name)
+    row       = get_item(brand, item_name)
+    name      = f"{brand} {item_name}".strip()
 
     if not row or row["qty"] == 0:
         await update.message.reply_text(
-            f"I don't see <b>{item_name}</b> in the fridge.", parse_mode="HTML"
+            f"I don't see <b>{name}</b> in the fridge.", parse_mode="HTML"
         )
         return
 
-    soft_delete_item(item_name)
+    soft_delete_item(brand, item_name)
     await update.message.reply_text(
-        f"🗑 <b>{item_name}</b> thrown away. What a waste!", parse_mode="HTML"
+        f"🗑 <b>{name}</b> thrown away. What a waste!", parse_mode="HTML"
     )
 
 
@@ -120,7 +188,7 @@ async def handle_view(update: Update, fridge: list):
         await update.message.reply_text("The fridge is bare! 🏜️ Time to restock.")
         return
 
-    today      = datetime.now().date()
+    today       = datetime.now().date()
     by_category = {}
 
     for row in fridge:
