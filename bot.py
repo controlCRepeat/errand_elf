@@ -1,7 +1,7 @@
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 from config import TELEGRAM_BOT_TOKEN
 from database import init_db
-from handlers import handle_message, cmd_intro, cmd_fridge, cmd_expiring, cmd_restock
+from handlers import handle_message, cmd_intro, cmd_fridge, cmd_expiring, cmd_restock, cmd_categories
 
 
 def main():
@@ -12,6 +12,7 @@ def main():
     app.add_handler(CommandHandler("intro",     cmd_intro))
     app.add_handler(CommandHandler("fridge",    cmd_fridge))
     app.add_handler(CommandHandler("expiring",  cmd_expiring))
+    app.add_handler(CommandHandler("restock",   cmd_restock))
     app.add_handler(CommandHandler("restock",   cmd_restock))
 
     # Free text — goes through Gemini

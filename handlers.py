@@ -110,6 +110,21 @@ async def cmd_restock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
+async def cmd_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lines = [f"{emoji}  {cat.upper()}" for cat, emoji in {
+        "fresh":      "🥩",
+        "frozen":     "🧊",
+        "dry goods":  "🥫",
+        "drinks":     "🍺",
+        "condiments": "🫙",
+        "household":  "🧴",
+        "snacks":     "🥨",
+    }.items()]
+    await update.message.reply_text(
+        "<b>📋 Categories</b>\n" + "\n".join(lines),
+        parse_mode="HTML"
+    )
+
 
 # ---------------------------------------------------------------------------
 # Intent handlers
