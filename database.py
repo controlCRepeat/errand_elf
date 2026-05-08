@@ -84,6 +84,18 @@ def get_item(brand: str, item_name: str):
             return cur.fetchone()
 
 
+def get_item_fuzzy(item_name: str):
+    """Fallback search by item_name only, ignoring brand."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT * FROM fridge_current
+                WHERE item_name ILIKE %s AND qty > 0
+                LIMIT 1
+            """, (f"%{item_name}%",))
+            return cur.fetchone()
+
+
 def get_all_items():
     """Returns only in-stock items (qty > 0), ordered by category then expiry."""
     with get_conn() as conn:
